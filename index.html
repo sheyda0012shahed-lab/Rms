@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>پیگیری مشتریان</title>
+<style>
+:root{--bg:#f5f6f8;--card:#fff;--tx:#1b1f24;--mu:#6b7280;--pr:#0f6fde;--ok:#16a34a;--bad:#dc2626;--bd:#e5e7eb;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media(prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#111418;--card:#1c2127;--tx:#eef0f3;--mu:#9aa3ad;--pr:#4a9bff;--bd:#2c333b}}
+:root[data-theme="dark"]{--bg:#111418;--card:#1c2127;--tx:#eef0f3;--mu:#9aa3ad;--pr:#4a9bff;--bd:#2c333b}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--tx);font-family:Tahoma,"Vazirmatn",system-ui,sans-serif;padding-bottom:70px}
+header{padding:14px 16px;font-weight:bold;font-size:18px}
+.tabs{position:fixed;bottom:0;left:0;right:0;display:flex;background:var(--card);border-top:1px solid var(--bd);padding-bottom:env(safe-area-inset-bottom,0px)}
+.tabs button{flex:1;padding:14px 4px;background:none;border:0;color:var(--mu);font:inherit;font-size:14px}
+.tabs button.on{color:var(--pr);font-weight:bold}
+main{padding:0 12px}
+.card{background:var(--card);border:1px solid var(--bd);border-radius:12px;padding:12px;margin-bottom:10px}
+.row{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.mu{color:var(--mu);font-size:13px;margin-top:4px}
+.badge{font-size:12px;padding:2px 8px;border-radius:99px;background:var(--bd)}
+.late{background:var(--bad);color:#fff}.today{background:var(--pr);color:#fff}
+.acts{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px}
+.acts a,.acts button,.btn{flex:1;text-align:center;padding:12px 6px;border-radius:10px;border:1px solid var(--bd);background:var(--card);color:var(--tx);font:inherit;font-size:13px;text-decoration:none;min-width:70px}
+.btn.p,.acts .ok{background:var(--pr);color:#fff;border-color:var(--pr)}
+.acts .ok{background:var(--ok);border-color:var(--ok)}
+input,select,textarea{width:100%;padding:11px;margin:5px 0 10px;border:1px solid var(--bd);border-radius:8px;background:var(--bg);color:var(--tx);font:inherit}
+label{font-size:13px;color:var(--mu)}
+.empty{text-align:center;color:var(--mu);padding:40px 0}
+</style>
+</head>
+<body>
+<header>🔧 پیگیری مشتریان لوازم یدکی <span style="font-size:11px;color:var(--mu)">نسخه ۶</span></header>
+<main id="m"></main>
+<nav class="tabs">
+<button data-t="today">امروز</button><button data-t="all">مشتریان</button><button data-t="stock">انبار</button><button data-t="add">+ افزودن</button><button data-t="set">تنظیمات</button>
+</nav>
+<script>
+window.onerror=function(m,u,l){var b=document.getElementById('m');if(b)b.insertAdjacentHTML('afterbegin','<div class="card" style="color:#dc2626">خطا: '+m+' (خط '+l+')</div>')};
+var K='followup_v1',pr=[],wl=[],db=[],tab='today',q='',lim=50,ed=null;
+try{db=JSON.parse(localStorage.getItem(K)||'[]')}catch(e){db=[]}
+try{pr=JSON.parse(localStorage.getItem(K+'p')||'[]');wl=JSON.parse(localStorage.getItem(K+'w')||'[]')}catch(e){pr=[];wl=[]}
+function save(){try{localStorage.setItem(K,JSON.stringify(db));localStorage.setItem(K+'p',JSON.stringify(pr));localStorage.setItem(K+'w',JSON.stringify(wl))}catch(e){}}
+var F=new Intl.DateTimeFormat('fa-IR-u-ca-persian',{year:'numeric',month:'long',day:'numeric'});
+function iso(d){return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')}
+function P(s){var a=s.split('-');return new Date(+a[0],+a[1]-1,+a[2])}
+function fd(s){return F.format(P(s))}
+function add(s,n){var d=P(s);d.setDate(d.getDate()+n);return iso(d)}
+function diff(s){return Math.round((P(s)-P(iso(new Date())))/864e5)}
+function esc(t){return String(t||'').replace(/[&<>"]/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]})}
+function wa(p){p=p.replace(/\D/g,'');if(p[0]=='0')p='98'+p.slice(1);return 'https://wa.me/'+p}
+function card(c){
+var d=diff(c.follow),b='';
+if(!c.done){b=d<0?'<span class="badge late">'+(-d)+' روز دیرتر</span>':d==0?'<span class="badge today">امروز</span>':'<span class="badge">'+d+' روز دیگر</span>'}else b='<span class="badge">✓ انجام شد</span>';
+return '<div class="card"><div class="row"><b>'+esc(c.name)+'</b>'+b+'</div>'+(c.code?'<div class="mu">🆔 کد مشتری: '+esc(c.code)+'</div>':'')+
+'<div class="mu">🛒 '+(c.items&&c.items.length?c.items:[c.part||'—']).map(function(t){return esc(itx(t))}).join(' • ')+'</div>'+(c.addr?'<div class="mu">📍 '+esc(c.addr)+'</div>':'')+(c.car?'<div class="mu">🚗 '+esc(c.car)+'</div>':'')+(function(){var k=wl.filter(function(x){return !x.done&&x.phone==c.phone}).map(function(x){return esc(x.prod)});return k.length?'<div class="mu" style="color:var(--bad)">⏳ کسری: '+k.join(' • ')+'</div>':''})()+
+'<div class="mu">خرید: '+fd(c.buy)+' • پیگیری: '+fd(c.follow)+'</div>'+
+(c.note?'<div class="mu">'+esc(c.note)+'</div>':'')+
+'<div dir="ltr" onclick="cp('+c.id+')" style="text-align:right;font-size:17px;margin-top:6px;user-select:text;-webkit-user-select:text">☎ '+esc(c.phone)+' <span class="mu">(لمس = کپی)</span></div>'+
+'<div class="acts"><a href="tel:'+esc(c.phone)+'">📞 تماس</a><button onclick="sh('+c.id+')">📦 کسری مشتری</button><button onclick="cmc('+c.id+')">💬 ارسال در روبیکا</button>'+
+(c.done?'':'<button class="ok" onclick="done('+c.id+')">✓ پیگیری شد</button>')+
+'<button onclick="edit('+c.id+')">✏️ ویرایش</button><button onclick="del('+c.id+')">🗑 حذف</button></div></div>'}
+function done(id){var c=db.find(function(x){return x.id==id});c.done=true;
+if(confirm('پیگیری بعدی هم تنظیم شود؟ (۹۰ روز دیگر)')){db.push({id:Date.now(),name:c.name,phone:c.phone,car:c.car,code:c.code,addr:c.addr,items:c.items,part:c.part,note:c.note,buy:c.buy,follow:add(iso(new Date()),90),done:false})}
+save();draw()}
+function del(id){if(confirm('حذف شود؟')){db=db.filter(function(x){return x.id!=id});save();draw()}}
+function edit(id){ed=id;tab='add';draw()}
+function draw(){
+MS=[];
+var m=document.getElementById('m'),h='';
+document.querySelectorAll('.tabs button').forEach(function(b){b.classList.toggle('on',b.dataset.t==tab)});
+if(tab=='today'){
+var l=db.filter(function(c){return !c.done&&diff(c.follow)<=0}).sort(function(a,b){return a.follow<b.follow?-1:1});
+h=(pr.some(function(p){return p.fresh})?'<div class="card" style="border-color:var(--pr)" onclick="tab=\'stock\';draw()">📦 جنس جدید وارد شده؛ برای دیدن مشتریان منتظر اینجا بزنید</div>':'')+'<div class="mu" style="margin:0 4px 10px">'+l.length+' پیگیری برای امروز و عقب‌افتاده</div>'+(l.map(card).join('')||'<div class="empty">🎉 پیگیری معوقه‌ای نیست</div>');
+}else if(tab=='all'){
+var s=q.trim(),l=db.filter(function(c){return !s||c.name.indexOf(s)>-1||c.phone.indexOf(s)>-1||(c.part||'').indexOf(s)>-1||(c.code||'').indexOf(s)>-1||(c.addr||'').indexOf(s)>-1}).sort(function(a,b){return a.follow<b.follow?-1:1});
+h='<input id="q" placeholder="جستجو: نام، شماره یا قطعه" value="'+esc(q)+'" oninput="q=this.value;lim=50;keep()">'+
+'<div id="lst">'+lst(l)+'</div>';
+}else if(tab=='stock'){
+h='<div class="card"><label>نام جنس</label><input id="pn" placeholder="مثلاً لنت ترمز جلو"><label>کد جنس (خالی = خودکار)</label><input id="pk" placeholder="مثلاً 5001"><label>خودرو مرتبط</label><input id="pc" placeholder="مثلاً پژو ۴۰۵"><label>تعداد موجودی</label><input id="pq" type="number" value="0"><button class="btn p" style="width:100%" onclick="ap()">ثبت جنس</button></div>';
+pr.filter(function(p){return p.fresh}).forEach(function(p){h+=ann(p)});
+h+='<div class="mu" style="margin:0 4px 8px">کل اجناس: '+pr.length+'</div>';
+pr.forEach(function(p){h+='<div class="card"><div class="row"><b>'+esc(p.name)+'</b><span class="badge'+(p.qty>0?'':' late')+'">'+(p.qty>0?'موجودی: '+p.qty:'ناموجود')+'</span></div><div class="mu">'+'کد: '+esc(p.code||'-')+' • '+esc(p.car)+' • منتظران: '+wl.filter(function(x){return !x.done&&hit(x.prod,p)}).length+'</div><div class="acts"><button class="ok" onclick="rs('+p.id+')">+ ورود جنس</button><button onclick="dp('+p.id+')">حذف</button></div></div>'});
+}else if(tab=='add'){
+var c=db.find(function(x){return x.id==ed})||{buy:iso(new Date())};
+cur=(c.items||(c.part?[c.part]:[])).slice();
+h='<div class="card"><label>نام مشتری</label><input id="n" value="'+esc(c.name)+'">'+'<label>کد مشتری (خالی = خودکار)</label><input id="cc" value="'+esc(c.code)+'">'+'<label>آدرس</label><textarea id="ad" rows="2">'+esc(c.addr)+'</textarea>'+
+'<label>شماره تماس</label><input id="p" type="tel" value="'+esc(c.phone)+'">'+
+'<label>قطعه خریداری‌شده</label><div class="row"><input id="pt" list="pl2" oninput="fc()" placeholder="نام قطعه" style="margin:5px 0"><input id="ptc" placeholder="کد قطعه" style="margin:5px 0;width:38%"><button class="btn p" style="flex:none;width:48px" onclick="ai()">+</button></div><div id="chips" style="margin-bottom:10px">'+chips()+'</div><datalist id="pl2">'+pr.map(function(p){return '<option value="'+esc(p.name)+'">'}).join('')+'</datalist>'+
+'<label>خودرو (مدل/سال)</label><input id="car" value="'+esc(c.car)+'">'+
+'<label>جنس مورد نیاز / کسری (اختیاری)</label><input id="w" list="pl" placeholder="جنسی که موجود نبود"><datalist id="pl">'+pr.map(function(p){return '<option value="'+esc(p.name)+'">'}).join('')+'</datalist>'+
+'<label>تاریخ خرید</label><input id="b" type="date" value="'+c.buy+'">'+
+'<label>پیگیری چند روز بعد از خرید؟</label><select id="d"><option>7</option><option>30</option><option selected>60</option><option>90</option><option>180</option></select>'+
+'<label>یادداشت</label><textarea id="nt" rows="2">'+esc(c.note)+'</textarea>'+
+'<button class="btn p" onclick="sv()" style="width:100%">'+(ed?'ذخیره تغییرات':'ذخیره مشتری')+'</button></div>';
+}else{
+h='<div class="card"><div>تعداد مشتریان: <b>'+db.length+'</b></div><div class="acts"><button onclick="ex()">خروجی پشتیبان</button><button onclick="demo()">۱۰۰۰ مشتری نمونه</button></div>'+
+'<div class="mu">نسخه آزمایشی؛ داده‌ها فقط در همین مرورگر ذخیره می‌شوند.</div></div>';
+}
+m.innerHTML=h}
+function lst(l){return (l.slice(0,lim).map(card).join('')||'<div class="empty">موردی نیست</div>')+(l.length>lim?'<button class="btn" style="width:100%" onclick="lim+=50;keep()">نمایش بیشتر ('+(l.length-lim)+')</button>':'')}
+function keep(){var s=q.trim(),l=db.filter(function(c){return !s||c.name.indexOf(s)>-1||c.phone.indexOf(s)>-1||(c.part||'').indexOf(s)>-1||(c.code||'').indexOf(s)>-1||(c.addr||'').indexOf(s)>-1}).sort(function(a,b){return a.follow<b.follow?-1:1});document.getElementById('lst').innerHTML=lst(l)}
+function sv(){
+var g=function(i){return document.getElementById(i).value.trim()};
+if(!g('n')||!g('p')){alert('نام و شماره الزامی است');return}
+if(g('pt')&&ai()===false)return;var it=cur.slice();var r={id:ed||Date.now(),name:g('n'),phone:g('p'),code:g('cc')||nc(),addr:g('ad'),items:it,part:it.map(itx).join('، '),car:g('car'),buy:g('b'),note:g('nt'),done:false};
+r.follow=add(r.buy,+g('d'));
+if(ed){var i=db.findIndex(function(x){return x.id==ed});db[i]=r}else db.push(r);
+if(g('w'))wl.push({id:Date.now()+1,name:r.name,phone:r.phone,prod:g('w'),done:false});
+ed=null;save();tab='today';draw()}
+function ex(){var a=document.createElement('a');a.href='data:application/json;charset=utf-8,'+encodeURIComponent(JSON.stringify({db:db,pr:pr,wl:wl}));a.download='backup.json';a.click()}
+function demo(){var N=['علی','رضا','محمد','حسین','مهدی','سعید'],P=['لنت ترمز','فیلتر روغن','کمک فنر','شمع','تسمه تایم'];
+for(var i=0;i<1000;i++){var b=add(iso(new Date()),-Math.floor(Math.random()*120));db.push({id:Date.now()+i,name:N[i%6]+' '+(i+1),phone:'0912'+String(1000000+i),part:P[i%5],car:'پژو ۴۰۵',buy:b,follow:add(b,60),note:'',done:false})}
+save();alert('اضافه شد');tab='today';draw()}
+var cur=[];
+function chips(){return cur.map(function(t,i){return '<span class="badge" style="display:inline-block;margin:3px">'+esc(itx(t))+' <b onclick="rm('+i+')">✕</b></span>'}).join('')}
+function itx(t){return typeof t=='string'?t:t.n+(t.c?' [کد '+t.c+']':'')}
+function fc(){var v=document.getElementById('pt').value.trim(),p=pr.find(function(x){return x.name==v});if(p&&p.code)document.getElementById('ptc').value=p.code}
+function nc(){var m=1000;db.forEach(function(c){var n=parseInt(c.code);if(n>m)m=n});return String(m+1)}
+function np(){var m=5000;pr.forEach(function(c){var n=parseInt(c.code);if(n>m)m=n});return String(m+1)}
+function ai(){var e=document.getElementById('pt'),k=document.getElementById('ptc'),v=e.value.trim();if(!v)return;if(!k.value.trim()){alert('کد قطعه را وارد کنید');return false}cur.push({n:v,c:k.value.trim()});e.value='';k.value='';document.getElementById('chips').innerHTML=chips();return true}
+function rm(i){cur.splice(i,1);document.getElementById('chips').innerHTML=chips()}
+var MS=[];
+
+function sh(id){var c=db.find(function(x){return x.id==id}),v=prompt('چه جنسی برای '+c.name+' کسری است؟');if(v&&v.trim()){wl.push({id:Date.now(),name:c.name,phone:c.phone,prod:v.trim(),done:false});save();draw()}}
+function ct(t){if(navigator.share){navigator.share({text:t}).catch(function(){});return}function fb(){var a=document.createElement('textarea');a.value=t;document.body.appendChild(a);a.select();try{document.execCommand('copy')}catch(e){}a.remove();alert('کپی شد؛ در روبیکا بچسبانید:\n'+t)}try{navigator.clipboard.writeText(t).then(function(){alert('کپی شد؛ در روبیکا بچسبانید:\n'+t)},fb)}catch(e){fb()}}
+function cp(id){var c=db.find(function(x){return x.id==id});ct(c.phone)}
+function cmc(id){var c=db.find(function(x){return x.id==id});ct('سلام '+c.name+'، برای پیگیری خرید قبلی شما ('+(c.part||'قطعه')+') پیام دادم. اگر نیازی دارید بفرمایید.')}
+function hit(a,p){a=(a||'').trim();var b=p.name.trim();return !!a&&(a.indexOf(b)>-1||b.indexOf(a)>-1)}
+function ap(){var g=function(i){return document.getElementById(i).value.trim()};if(!g('pn')){alert('نام جنس را وارد کنید');return}var q=+g('pq')||0;pr.unshift({id:Date.now(),name:g('pn'),code:g('pk')||np(),car:g('pc'),qty:q,fresh:q>0});save();draw()}
+function rs(id){var p=pr.find(function(x){return x.id==id}),n=+prompt('چند عدد وارد انبار شد؟','1');if(n>0){p.qty+=n;p.fresh=true;save();draw()}}
+function dp(id){if(confirm('حذف شود؟')){pr=pr.filter(function(x){return x.id!=id});save();draw()}}
+function ok(id){var p=pr.find(function(x){return x.id==id});p.fresh=false;wl.forEach(function(x){if(!x.done&&hit(x.prod,p))x.done=true});save();draw()}
+function ann(p){
+var w=wl.filter(function(x){return !x.done&&hit(x.prod,p)}),seen={},sg=[];
+w.forEach(function(x){seen[x.phone]=1});
+db.forEach(function(c){if(p.car&&c.car&&(c.car.indexOf(p.car)>-1||p.car.indexOf(c.car)>-1)&&!seen[c.phone]){seen[c.phone]=1;sg.push(c)}});
+var ln=function(x){MS.push('سلام '+x.name+'، جنس «'+p.name+'» الان موجود شد. اگر نیاز دارید بفرمایید.');return '<div class="row" style="margin-top:8px"><span>'+esc(x.name)+'</span><button class="btn" style="flex:none" onclick="ct(MS['+(MS.length-1)+'])">💬 ارسال در روبیکا</button></div>'};
+return '<div class="card" style="border-color:var(--pr)"><b>📦 ورود جدید: '+esc(p.name)+'</b><div class="mu">مشتریان منتظر ('+w.length+')</div>'+(w.map(ln).join('')||'<div class="mu">—</div>')+'<div class="mu" style="margin-top:12px">پیشنهاد اطلاع‌رسانی (هم‌خودرو) ('+sg.length+')</div>'+(sg.slice(0,30).map(ln).join('')||'<div class="mu">—</div>')+'<div class="acts"><button class="ok" onclick="ok('+p.id+')">✓ اعلام شد</button></div></div>'}
+document.querySelector('.tabs').onclick=function(e){var t=e.target.dataset.t;if(t){if(t!='add')ed=null;tab=t;draw()}};
+draw();
+</script>
+</body>
+</html>
